@@ -132,35 +132,52 @@ async def paid(cb: CallbackQuery, state: FSMContext):
     await cb.message.answer("📸 Чекті жібер:")
     await cb.answer()
 
-@dp.message(BuyState.waiting_receipt, F.photo)
+@dp.message(BuyState.waiting_receipt, F.photo | F.document)
 async def receipt(msg: Message, state: FSMContext):
     data = await state.get_data()
     pid, plan_id = data["pid"], data["plan_id"]
     p = PRODUCTS[pid]
     plan = p["plans"][plan_id]
 
-    for admin in ADMIN_IDS:
-        await bot.send_photo(
-            admin,
-            msg.photo[-1].file_id,
-            caption=(
-                f"🆕 <b>Жаңа тапсырыс!</b>\n\n"
-                f"👤 @{msg.from_user.username} (ID: <code>{msg.from_user.id}</code>)\n"
-                f"📦 {p['name']} — {plan['label']}\n"
-                f"💰 {plan['price']}₸"
-            ),
-            parse_mode="HTML",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-                InlineKeyboardButton(
-                    text="✅ Растау",
-                    callback_data=f"admin:approve:{msg.from_user.id}:{pid}:{plan_id}"
-                ),
-                InlineKeyboardButton(
-                    text="❌ Қабылдамау",
-                    callback_data=f"admin:reject:{msg.from_user.id}"
-                ),
-            ]])
-        )
+    caption = (
+        f"🆕 <b>Жаңа тапсырыс!</b>\n\n"
+        f"👤 @{msg.from_user.username} (ID: <code>{msg.from_user.id}</code>)\n"
+        f"📦 {p['name']} — {plan['label']}\n"
+        f"💰 {plan['price']}₸"
+    )
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(
+            text="✅ Растау",
+            callback_data=f"admin:approve:{msg.from_user.id}:{pid}:{plan_id}"
+        ),
+        InlineKeyboardButton(
+            text="❌ Қабылдамау",
+            callback_data=f"admin:reject:{msg.from_user.id}"
+        ),
+    ]])
+
+    # Егер фото болса
+    if msg.photo:
+        for admin in ADMIN_IDS:
+            await bot.send_photo(
+                admin,
+                msg.photo[-1].file_id,
+                caption=caption,
+                parse_mode="HTML",
+                reply_markup=keyboard
+            )
+    # Егер PDF (немесе басқа құжат) болса
+    elif msg.document:
+        for admin in ADMIN_IDS:
+            await bot.send_document(
+                admin,
+                msg.document.file_id,
+                caption=caption,
+                parse_mode="HTML",
+                reply_markup=keyboard
+            )
+
     await msg.answer("✅ Чек қабылданды! Админ тексереді.")
     await state.clear()
 
