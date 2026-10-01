@@ -7,7 +7,7 @@ PRODUCTS = {
     "cry4me": {
         "name": "CRY4ME",
         "plans": {
-            "1day":   {"label": "1 DAY",   "price": 2000},
+            "1day":   {"label": "1 DAY",   "price": 1300},
             "1week":  {"label": "1 WEEK",  "price": 4500},
             "1month": {"label": "1 MONTH", "price": 15000},
         }
