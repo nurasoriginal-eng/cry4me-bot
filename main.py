@@ -36,7 +36,7 @@ class AdminState(StatesGroup):
 # ---------- КЛАВИАТУРАЛАР ----------
 def main_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🛒 CRY4ME сатып алу", callback_data="prod:cry4me")],
+        [InlineKeyboardButton(text="🛒 CRY4ME сатып алу 50% СКИДКА 🔥", callback_data="prod:cry4me")],
         [InlineKeyboardButton(text="👤 Профиль", callback_data="profile")],
         [InlineKeyboardButton(text="💬 Қолдау", url=SUPPORT_URL)],
     ])
@@ -92,7 +92,7 @@ async def show_plans(cb: CallbackQuery):
     text = (
         f"🔥 <b>{p['name']}</b>\n\n"
         f"<b>Бағалар:</b>\n"
-        f"• 1 DAY — 2000₸\n"
+        f"• 1 DAY — 1300₸\n"
         f"• 1 WEEK — 4500₸\n"
         f"• 1 MONTH — 15000₸\n\n"
         f"Тарифті таңда:"
