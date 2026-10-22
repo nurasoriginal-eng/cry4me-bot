@@ -5,7 +5,7 @@ from aiogram import Bot, Dispatcher, F
 from aiogram.filters import CommandStart, Command
 from aiogram.types import (
     Message, CallbackQuery,
-    InlineKeyboardMarkup, InlineKeyboardButton, InputMediaPhoto
+    InlineKeyboardMarkup, InlineKeyboardButton
 )
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -121,13 +121,25 @@ async def start(msg: Message):
         parse_mode="HTML"
     )
 
+# ОРТАҚ ФУНКЦИЯ: Ескі хабарламаны өшіріп, жаңа суретті хабарлама жіберу
+async def send_new_photo_msg(cb: CallbackQuery, photo: str, text: str, menu: InlineKeyboardMarkup):
+    await cb.message.delete()
+    await cb.message.answer_photo(
+        photo=photo, 
+        caption=text, 
+        reply_markup=menu, 
+        parse_mode="HTML"
+    )
+
+# ОРТАҚ ФУНКЦИЯ: Ескі хабарламаны өшіріп, жаңа мәтіндік хабарлама жіберу
+async def send_new_text_msg(cb: CallbackQuery, text: str, menu: InlineKeyboardMarkup = None):
+    await cb.message.delete()
+    await cb.message.answer(text, reply_markup=menu, parse_mode="HTML")
+
+
 @dp.callback_query(F.data == "back")
 async def back(cb: CallbackQuery):
-    if cb.message.photo:
-        await cb.message.delete()
-        await cb.message.answer("Басты мәзір:", reply_markup=main_menu())
-    else:
-        await cb.message.edit_text("Басты мәзір:", reply_markup=main_menu())
+    await send_new_text_msg(cb, "Басты мәзір:", main_menu())
     await cb.answer()
 
 @dp.callback_query(F.data == "choose_platform")
@@ -140,15 +152,7 @@ async def choose_platform(cb: CallbackQuery):
         "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
         "📱 <b>Выберите ваше устройство</b>"
     )
-    if not cb.message.photo:
-        await cb.message.delete()
-        await cb.message.answer_photo(
-            photo=MAIN_PHOTO, caption=text, reply_markup=platform_menu(), parse_mode="HTML"
-        )
-    else:
-        await cb.message.edit_caption(
-            caption=text, reply_markup=platform_menu(), parse_mode="HTML"
-        )
+    await send_new_photo_msg(cb, MAIN_PHOTO, text, platform_menu())
     await cb.answer()
 
 @dp.callback_query(F.data.startswith("plat:"))
@@ -163,8 +167,7 @@ async def choose_product(cb: CallbackQuery):
             "❗️ Если вы не знаете что такое ROOT права, то скорее всего у вас их нет и данная категория для вас подходит.\n"
             "❗️ Ознакомьтесь с софтами, у каждого разный функционал и внешний вид."
         )
-        photo = ANDROID_PHOTO
-        menu = android_products_menu()
+        await send_new_photo_msg(cb, ANDROID_PHOTO, text, android_products_menu())
     else:
         text = (
             "🍏 <b>IOS (iPhone)</b>\n"
@@ -172,19 +175,8 @@ async def choose_product(cb: CallbackQuery):
             "🔥 Приватные решения для iOS.\n\n"
             "Выберите нужный софт:"
         )
-        photo = MAIN_PHOTO 
-        menu = ios_products_menu()
+        await send_new_photo_msg(cb, MAIN_PHOTO, text, ios_products_menu())
     
-    if cb.message.photo:
-        await cb.message.edit_media(
-            media=InputMediaPhoto(media=photo, caption=text, parse_mode="HTML"),
-            reply_markup=menu
-        )
-    else:
-        await cb.message.delete()
-        await cb.message.answer_photo(
-            photo=photo, caption=text, reply_markup=menu, parse_mode="HTML"
-        )
     await cb.answer()
 
 @dp.callback_query(F.data.startswith("prod:"))
@@ -205,19 +197,7 @@ async def show_plans(cb: CallbackQuery):
     if "description" in p:
         text += f"⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n{p['description']}\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯"
     
-    if cb.message.photo:
-        await cb.message.edit_media(
-            media=InputMediaPhoto(media=p["photo"], caption=text, parse_mode="HTML"),
-            reply_markup=plans_menu(pid, stock_counts)
-        )
-    else:
-        await cb.message.delete()
-        await cb.message.answer_photo(
-            photo=p["photo"], 
-            caption=text, 
-            reply_markup=plans_menu(pid, stock_counts), 
-            parse_mode="HTML"
-        )
+    await send_new_photo_msg(cb, p["photo"], text, plans_menu(pid, stock_counts))
     await cb.answer()
 
 @dp.callback_query(F.data.startswith("buy:"))
@@ -242,8 +222,7 @@ async def buy(cb: CallbackQuery):
         f"Төлеген соң чектің скриншотын осы чатқа жібер 👇"
     )
     
-    await cb.message.delete()
-    await cb.message.answer(text, reply_markup=confirm_menu(pid, plan_id), parse_mode="HTML")
+    await send_new_text_msg(cb, text, confirm_menu(pid, plan_id))
     await cb.answer()
 
 @dp.callback_query(F.data.startswith("paid:"))
@@ -365,7 +344,6 @@ async def process_review_text(msg: Message, state: FSMContext):
     rating = data["rating"]
     text = msg.text
     
-    # Дерекқорға сақтау
     await db.save_review(msg.from_user.id, rating, text)
     
     await msg.answer(
@@ -375,7 +353,6 @@ async def process_review_text(msg: Message, state: FSMContext):
     
     stars = "⭐" * rating
     
-    # 1. Админге (саған) жеке жіберу
     for admin in ADMIN_IDS:
         try:
             await bot.send_message(
@@ -389,7 +366,6 @@ async def process_review_text(msg: Message, state: FSMContext):
         except:
             pass
 
-    # 2. Каналға автоматты жіберу
     try:
         await bot.send_message(
             REVIEW_CHANNEL_ID,
@@ -486,11 +462,7 @@ async def profile(cb: CallbackQuery):
         for product, plan, key, date in rows:
             text += f"🔑 <code>{key}</code>\n📅 {date}\n\n"
     
-    if cb.message.photo:
-        await cb.message.delete()
-        await cb.message.answer(text, parse_mode="HTML", reply_markup=main_menu())
-    else:
-        await cb.message.edit_text(text, parse_mode="HTML", reply_markup=main_menu())
+    await send_new_text_msg(cb, text, main_menu())
     await cb.answer()
 
 # ---------- WEBHOOK ----------
