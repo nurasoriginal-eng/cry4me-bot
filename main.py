@@ -177,13 +177,12 @@ async def choose_product(cb: CallbackQuery):
         )
     else:
         await cb.message.delete()
-        await</ cb.message.answer_photo(
-            photo=bphoto, caption=text, reply_markup=>\menu, parse_mode="HTML"
+        await cb.message.answer_photo(
+            photo=photo, caption=text, reply_markup=menu, parse_mode="HTML"
         )
-   n await cb.answer()
+    await cb.answer()
 
-@dp.callback_query"
-(F.data.startswith("prod:"))
+@dp.callback_query(F.data.startswith("prod:"))
 async def show_plans(cb: CallbackQuery):
     pid = cb.data.split(":")[1]
     p = PRODUCTS[pid]
@@ -230,7 +229,8 @@ async def buy(cb: CallbackQuery):
     text = (
         f"🛒 <b>{p['name']}</b>\n"
         f"📅 Тариф: <b>{plan['label']}</b>\n"
-        f"💰 Бағасы: <b>{plan['price']}        f"📦 Қоймада: {stock} дана\n\n"
+        f"💰 Бағасы: <b>{plan['price']}₸</b>\n"
+        f"📦 Қоймада: {stock} дана\n\n"
         f"<b>Төлем әдістері:</b>\n"
         f"1️⃣ Kaspi: <code>{KASPI_NUMBER}</code>\n"
         f"2️⃣ USDT (TRC20): <code>{CRYPTO_WALLET}</code>\n\n"
