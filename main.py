@@ -18,6 +18,9 @@ from config import (
 )
 import database as db
 
+# ---- КАНАЛ ID (Отзывтар баратын жер) ----
+REVIEW_CHANNEL_ID = -1004492854668
+
 # ---- Render үшін веб-сервер параметрлері ----
 WEBHOOK_HOST = os.getenv("RENDER_EXTERNAL_URL", "https://your-app.onrender.com")
 WEBHOOK_PATH = "/webhook"
@@ -120,8 +123,11 @@ async def start(msg: Message):
 
 @dp.callback_query(F.data == "back")
 async def back(cb: CallbackQuery):
-    await cb.message.delete()
-    await cb.message.answer("Басты мәзір:", reply_markup=main_menu())
+    if cb.message.photo:
+        await cb.message.delete()
+        await cb.message.answer("Басты мәзір:", reply_markup=main_menu())
+    else:
+        await cb.message.edit_text("Басты мәзір:", reply_markup=main_menu())
     await cb.answer()
 
 @dp.callback_query(F.data == "choose_platform")
@@ -134,15 +140,14 @@ async def choose_platform(cb: CallbackQuery):
         "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
         "📱 <b>Выберите ваше устройство</b>"
     )
-    if cb.message.photo:
-        await cb.message.edit_media(
-            media=InputMediaPhoto(media=MAIN_PHOTO, caption=text, parse_mode="HTML"),
-            reply_markup=platform_menu()
-        )
-    else:
+    if not cb.message.photo:
         await cb.message.delete()
         await cb.message.answer_photo(
             photo=MAIN_PHOTO, caption=text, reply_markup=platform_menu(), parse_mode="HTML"
+        )
+    else:
+        await cb.message.edit_caption(
+            caption=text, reply_markup=platform_menu(), parse_mode="HTML"
         )
     await cb.answer()
 
@@ -360,6 +365,7 @@ async def process_review_text(msg: Message, state: FSMContext):
     rating = data["rating"]
     text = msg.text
     
+    # Дерекқорға сақтау
     await db.save_review(msg.from_user.id, rating, text)
     
     await msg.answer(
@@ -368,6 +374,8 @@ async def process_review_text(msg: Message, state: FSMContext):
     )
     
     stars = "⭐" * rating
+    
+    # 1. Админге (саған) жеке жіберу
     for admin in ADMIN_IDS:
         try:
             await bot.send_message(
@@ -380,6 +388,19 @@ async def process_review_text(msg: Message, state: FSMContext):
             )
         except:
             pass
+
+    # 2. Каналға автоматты жіберу
+    try:
+        await bot.send_message(
+            REVIEW_CHANNEL_ID,
+            f"📩 <b>Жаңа отзыв!</b>\n\n"
+            f"👤 @{msg.from_user.username or msg.from_user.full_name}\n"
+            f"Бағасы: {stars}\n"
+            f"Пікірі: {text}",
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        print(f"Каналға жіберу қатесі: {e}")
             
     await state.clear()
 
@@ -464,7 +485,12 @@ async def profile(cb: CallbackQuery):
         text = "👤 <b>Сенің сатып алуларың:</b>\n\n"
         for product, plan, key, date in rows:
             text += f"🔑 <code>{key}</code>\n📅 {date}\n\n"
-    await cb.message.edit_text(text, parse_mode="HTML", reply_markup=main_menu())
+    
+    if cb.message.photo:
+        await cb.message.delete()
+        await cb.message.answer(text, parse_mode="HTML", reply_markup=main_menu())
+    else:
+        await cb.message.edit_text(text, parse_mode="HTML", reply_markup=main_menu())
     await cb.answer()
 
 # ---------- WEBHOOK ----------
