@@ -5,7 +5,7 @@ from aiogram import Bot, Dispatcher, F
 from aiogram.filters import CommandStart, Command
 from aiogram.types import (
     Message, CallbackQuery,
-    InlineKeyboardMarkup, InlineKeyboardButton
+    InlineKeyboardMarkup, InlineKeyboardButton, InputMediaPhoto
 )
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -110,6 +110,27 @@ def back_to_admin():
         [InlineKeyboardButton(text="⬅️ Артқа", callback_data="admin:menu")]
     ])
 
+# ---------- ОРТАҚ ФУНКЦИЯЛАР (ЖОҒАЛЫП КЕТПЕУ ҮШІН) ----------
+async def safe_edit_media(cb: CallbackQuery, photo: str, text: str, menu: InlineKeyboardMarkup):
+    try:
+        await cb.message.edit_caption(caption=text, reply_markup=menu, parse_mode="HTML")
+    except Exception:
+        try:
+            await cb.message.edit_media(
+                media=InputMediaPhoto(media=photo, caption=text, parse_mode="HTML"),
+                reply_markup=menu
+            )
+        except Exception:
+            await cb.message.answer_photo(
+                photo=photo, caption=text, reply_markup=menu, parse_mode="HTML"
+            )
+
+async def safe_edit_text(cb: CallbackQuery, text: str, menu: InlineKeyboardMarkup = None):
+    try:
+        await cb.message.edit_text(text, reply_markup=menu, parse_mode="HTML")
+    except Exception:
+        await cb.message.answer(text, reply_markup=menu, parse_mode="HTML")
+
 # ---------- ПАЙДАЛАНУШЫ ----------
 @dp.message(CommandStart())
 async def start(msg: Message):
@@ -121,25 +142,17 @@ async def start(msg: Message):
         parse_mode="HTML"
     )
 
-# ОРТАҚ ФУНКЦИЯ: Ескі хабарламаны өшіріп, жаңа суретті хабарлама жіберу
-async def send_new_photo_msg(cb: CallbackQuery, photo: str, text: str, menu: InlineKeyboardMarkup):
-    await cb.message.delete()
-    await cb.message.answer_photo(
-        photo=photo, 
-        caption=text, 
-        reply_markup=menu, 
-        parse_mode="HTML"
-    )
-
-# ОРТАҚ ФУНКЦИЯ: Ескі хабарламаны өшіріп, жаңа мәтіндік хабарлама жіберу
-async def send_new_text_msg(cb: CallbackQuery, text: str, menu: InlineKeyboardMarkup = None):
-    await cb.message.delete()
-    await cb.message.answer(text, reply_markup=menu, parse_mode="HTML")
-
-
 @dp.callback_query(F.data == "back")
 async def back(cb: CallbackQuery):
-    await send_new_text_msg(cb, "Басты мәзір:", main_menu())
+    # Артқа басқанда ескісін өшірмей, тек мәтінін өзгертеміз (немесе жаңасын қосамыз)
+    try:
+        if cb.message.photo:
+            await cb.message.delete()
+            await cb.message.answer("Басты мәзір:", reply_markup=main_menu())
+        else:
+            await cb.message.edit_text("Басты мәзір:", reply_markup=main_menu())
+    except Exception:
+        await cb.message.answer("Басты мәзір:", reply_markup=main_menu())
     await cb.answer()
 
 @dp.callback_query(F.data == "choose_platform")
@@ -152,7 +165,7 @@ async def choose_platform(cb: CallbackQuery):
         "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
         "📱 <b>Выберите ваше устройство</b>"
     )
-    await send_new_photo_msg(cb, MAIN_PHOTO, text, platform_menu())
+    await safe_edit_media(cb, MAIN_PHOTO, text, platform_menu())
     await cb.answer()
 
 @dp.callback_query(F.data.startswith("plat:"))
@@ -167,7 +180,7 @@ async def choose_product(cb: CallbackQuery):
             "❗️ Если вы не знаете что такое ROOT права, то скорее всего у вас их нет и данная категория для вас подходит.\n"
             "❗️ Ознакомьтесь с софтами, у каждого разный функционал и внешний вид."
         )
-        await send_new_photo_msg(cb, ANDROID_PHOTO, text, android_products_menu())
+        await safe_edit_media(cb, ANDROID_PHOTO, text, android_products_menu())
     else:
         text = (
             "🍏 <b>IOS (iPhone)</b>\n"
@@ -175,7 +188,7 @@ async def choose_product(cb: CallbackQuery):
             "🔥 Приватные решения для iOS.\n\n"
             "Выберите нужный софт:"
         )
-        await send_new_photo_msg(cb, MAIN_PHOTO, text, ios_products_menu())
+        await safe_edit_media(cb, MAIN_PHOTO, text, ios_products_menu())
     
     await cb.answer()
 
@@ -197,7 +210,7 @@ async def show_plans(cb: CallbackQuery):
     if "description" in p:
         text += f"⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n{p['description']}\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯"
     
-    await send_new_photo_msg(cb, p["photo"], text, plans_menu(pid, stock_counts))
+    await safe_edit_media(cb, p["photo"], text, plans_menu(pid, stock_counts))
     await cb.answer()
 
 @dp.callback_query(F.data.startswith("buy:"))
@@ -222,7 +235,7 @@ async def buy(cb: CallbackQuery):
         f"Төлеген соң чектің скриншотын осы чатқа жібер 👇"
     )
     
-    await send_new_text_msg(cb, text, confirm_menu(pid, plan_id))
+    await safe_edit_text(cb, text, confirm_menu(pid, plan_id))
     await cb.answer()
 
 @dp.callback_query(F.data.startswith("paid:"))
@@ -462,7 +475,14 @@ async def profile(cb: CallbackQuery):
         for product, plan, key, date in rows:
             text += f"🔑 <code>{key}</code>\n📅 {date}\n\n"
     
-    await send_new_text_msg(cb, text, main_menu())
+    try:
+        if cb.message.photo:
+            await cb.message.delete()
+            await cb.message.answer(text, parse_mode="HTML", reply_markup=main_menu())
+        else:
+            await cb.message.edit_text(text, parse_mode="HTML", reply_markup=main_menu())
+    except Exception:
+        await cb.message.answer(text, parse_mode="HTML", reply_markup=main_menu())
     await cb.answer()
 
 # ---------- WEBHOOK ----------
