@@ -175,7 +175,7 @@ async def choose_product(cb: CallbackQuery):
             media=InputMediaPhoto(media=photo, caption=text, parse_mode="HTML"),
             reply_markup=menu
         )
-    else₸:
+    else:
         await cb.message.delete()
         await</ cb.message.answer_photo(
             photo=bphoto, caption=text, reply_markup=>\menu, parse_mode="HTML"
